@@ -57,6 +57,31 @@ Options:
   -o, --output <OUTPUT>  Path to save the output image file (.png)
 ~~~
 
+## Use-case 2: Batch convert/apply alot of downloaded luts (New with v0.2.0)
+This will convert all LUTs in input folder to cube LUTs in output folder preserving input filename and directory structure.
+~~~sh
+Usage: lut_utility convert [OPTIONS] --input <INPUT> --output <OUTPUT>
+Example: lut_utility convert -i input\ReShadeLUTs -o output\CubeLUTs -t 32 -b
+
+Options:
+  -i, --input <INPUT>              Input LUT image file (.png) or a directory containing .png files for batch conversion
+  -o, --output <OUTPUT>            Output .cube filename (.cube) for single file conversion, or output directory for batch conversion
+  -t, --target-cube <TARGET_CUBE>  Optional target size for the output .cube file (e.g., 32, 33, 64). Must be <= the input LUT's native cube size
+  -b, --batch                      Enable batch processing mode. Input and output must be directories
+~~~
+
+This will apply ally luts in lut folder (-l) folder to this one image (0424406328.jpg). The files will be stored as PNG in output\0424406328\ preserving lut filename and directory structure.
+~~~sh
+Usage: lut_utility apply [OPTIONS] --lut <LUT> --input <INPUT> --output <OUTPUT>
+Example: lut_utility apply -l input\HaldCLUTs -i input\0424406328.jpg -o output\ -b
+
+Options:
+  -l, --lut <LUT>        Path to the LUT file (.png or .cube) or a directory containing LUT files for batch application
+  -i, --input <INPUT>    Path to the input image file (.jpg or .png). This remains a single file in batch mode
+  -o, --output <OUTPUT>  Path to save the output image file (.png) for single LUT application, or output directory for batch application
+  -b, --batch            Enable batch processing mode. LUT input must be a directory, output must be a directory
+~~~
+
 # Links
 ## Public free LUTs:
 - https://github.com/cedeber/hald-clut
