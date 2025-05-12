@@ -1,14 +1,13 @@
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use image::{DynamicImage, GenericImageView, ImageBuffer, ImageFormat, Pixel, Rgb, RgbImage};
 use std::f32;
-use std::fs::File;
+use std::fs::{self, File};
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::{Path, PathBuf};
 
 /// A utility to generate and convert different types of LUT images to .cube LUTs and to apply LUTs to images. More Information: https://github.com/Skyfish1/lut-utility
 #[derive(Parser, Debug)]
-#[clap(
-    author, version, about, long_about = None)]
+#[clap(author, version, about, long_about = None)]
 #[clap(propagate_version = true)]
 struct Cli {
     #[clap(subcommand)]
@@ -18,10 +17,10 @@ struct Cli {
 #[derive(Subcommand, Debug)]
 enum Commands {
     /// Generates an identity LUT image in specified format (HALD ((√(cube³) x √(cube³))) or Unwrapped Cube (cube² x cube)).
-    Generate(GenerateArgs), // Combined generate command
-    /// Converts a supported LUT image (.png) to a .cube file.
+    Generate(GenerateArgs),
+    /// Converts a supported LUT image (.png) to a .cube file. Can process a single file or a directory in batch mode.
     Convert(ConvertArgs),
-    /// Applies a LUT (.png or .cube) to an image (.jpg or .png).
+    /// Applies a LUT (.png or .cube) or a folder of LUTs to an image (.jpg or .png). Can process a single LUT or a folder of LUTs in batch mode.
     Apply(ApplyArgs),
     /// Shows examples of how to use the tool.
     Examples,
@@ -46,7 +45,7 @@ struct GenerateArgs {
     /// The base cube size for LUT generation (is same as level^2 for HALD).
     ///   Affects density and image size:
     ///     Image dimension = HALD: √(cube³) x √(cube³) UNWRAPPED CUBE: cube² x cube.
-    ///     Practical range: HALD: 1-400 UNWRAPPED CUBE 1-64. Higher values generate very large images.
+    ///     Practical range: HALD: 1-144 UNWRAPPED CUBE 1-64. Higher values generate very large images.
     #[clap(short, long)]
     cube: u32,
 
@@ -61,11 +60,11 @@ struct GenerateArgs {
 
 #[derive(Args, Debug)]
 struct ConvertArgs {
-    /// Input LUT image filename (.png). Dimensions will determine LUT type (HALD or UNWRAPPED_CUBE).
+    /// Input LUT image file (.png) or a directory containing .png files for batch conversion.
     #[clap(short, long)]
     input: PathBuf,
 
-    /// Output .cube filename (.cube).
+    /// Output .cube filename (.cube) for single file conversion, or output directory for batch conversion.
     #[clap(short, long)]
     output: PathBuf,
 
@@ -73,21 +72,29 @@ struct ConvertArgs {
     /// Must be <= the input LUT's native cube size.
     #[clap(short, long)]
     target_cube: Option<u32>,
+
+    /// Enable batch processing mode. Input and output must be directories.
+    #[clap(short, long)]
+    batch: bool,
 }
 
 #[derive(Args, Debug)]
 struct ApplyArgs {
-    /// Path to the LUT file (.png or .cube).
+    /// Path to the LUT file (.png or .cube) or a directory containing LUT files for batch application.
     #[clap(short, long)]
     lut: PathBuf,
 
-    /// Path to the input image file (.jpg or .png).
+    /// Path to the input image file (.jpg or .png). This remains a single file in batch mode.
     #[clap(short, long)]
     input: PathBuf,
 
-    /// Path to save the output image file (.png).
+    /// Path to save the output image file (.png) for single LUT application, or output directory for batch application.
     #[clap(short, long)]
     output: PathBuf,
+
+    /// Enable batch processing mode. LUT input must be a directory, output must be a directory.
+    #[clap(short, long)]
+    batch: bool,
 }
 
 // Helper function to generate LUT image data
@@ -442,18 +449,11 @@ fn convert_lut_to_cube(
     })?;
 
     if is_hald {
-        convert_hald_to_cube(
-            output_path,
-            img,
-            width,
-            native_cube_size,
-            output_size,
-            &mut writer,
-        )?;
+        convert_hald_to_cube_data(output_path, &img, width, native_cube_size, output_size, &mut writer)?;
     } else if is_unwrapped_cube {
-        convert_unwrapped_cube_to_cube(
+        convert_unwrapped_cube_to_cube_data(
             output_path,
-            img,
+            &img,
             width,
             native_cube_size,
             output_size,
@@ -475,9 +475,9 @@ fn convert_lut_to_cube(
     Ok(())
 }
 
-fn convert_unwrapped_cube_to_cube(
+fn convert_unwrapped_cube_to_cube_data(
     output_path: &Path,
-    img: DynamicImage,
+    img: &DynamicImage,
     width: u32,
     input_cube_size: u32,
     output_cube_size: u32,
@@ -548,11 +548,7 @@ fn convert_unwrapped_cube_to_cube(
                     writeln!(writer, "{:.6} {:.6} {:.6}", r_norm, g_norm, b_norm).map_err(|e| {
                         format!(
                             "Failed to write pixel data for point ({},{},{}) to .cube file {}: {}",
-                            r_norm,
-                            g_norm,
-                            b_norm,
-                            output_path.display(),
-                            e
+                            r_norm, g_norm, b_norm, output_path.display(), e
                         )
                     })?;
                     continue; // Move to the next iteration
@@ -573,11 +569,7 @@ fn convert_unwrapped_cube_to_cube(
                 writeln!(writer, "{:.6} {:.6} {:.6}", r_norm, g_norm, b_norm).map_err(|e| {
                     format!(
                         "Failed to write pixel data for point ({},{},{}) to .cube file {}: {}",
-                        r_norm,
-                        g_norm,
-                        b_norm,
-                        output_path.display(),
-                        e
+                        r_norm, g_norm, b_norm, output_path.display(), e
                     )
                 })?;
             }
@@ -586,9 +578,9 @@ fn convert_unwrapped_cube_to_cube(
     Ok(())
 }
 
-fn convert_hald_to_cube(
+fn convert_hald_to_cube_data(
     output_path: &Path,
-    img: DynamicImage,
+    img: &DynamicImage,
     width: u32,
     native_lut_size: u32,
     output_size: u32,
@@ -653,11 +645,7 @@ fn convert_hald_to_cube(
                 .map_err(|e| {
                     format!(
                         "Failed to write pixel data for point ({},{},{}) to .cube file {}: {}",
-                        r,
-                        g,
-                        b,
-                        output_path.display(),
-                        e
+                        r, g, b, output_path.display(), e
                     )
                 })?;
             }
@@ -1050,13 +1038,16 @@ fn run_examples() {
         "  lut_tool generate --format unwrapped-cube --cube 33 --bit-depth 16 --output unwrapped_33_16bit.png"
     );
     println!();
-    println!("Convert an Unwrapped Cube PNG to a .cube LUT:");
+    println!("Convert a single Unwrapped Cube PNG to a .cube LUT:");
     println!("  lut_tool convert --input unwrapped_33.png --output unwrapped_33.cube");
     println!();
     println!("Convert a HALD PNG and reduce to a 33-point .cube LUT:");
     println!("  lut_tool convert --input hald_64.png --output hald_64_to_33.cube --target-cube 33");
     println!();
-    println!("Apply a .cube LUT to an image:");
+    println!("Batch convert all PNG LUTs in a folder (and subfolders) to .cube files:");
+    println!("  lut_tool convert --input ./input_luts --output ./output_cubes --batch");
+    println!();
+    println!("Apply a single .cube LUT to an image:");
     println!(
         "  lut_tool apply --lut my_color_grade.cube --input photo.jpg --output photo_graded.png"
     );
@@ -1065,6 +1056,77 @@ fn run_examples() {
     println!(
         "  lut_tool apply --lut hald_64.png --input photo.png --output photo_hald_applied.png"
     );
+    println!();
+    println!("Apply all LUTs in a folder (and subfolders) to a single image:");
+    println!(
+        "  lut_tool apply --lut ./lut_collection --input photo.jpg --output ./applied_images --batch"
+    );
+}
+
+// Helper function to process files in a directory recursively
+fn process_directory<F>(
+    input_dir: &Path,
+    output_dir: &Path,
+    file_extension: &str,
+    processor: &mut F,
+) -> Result<(), String>
+where
+    F: FnMut(&Path, &Path) -> Result<(), String>,
+{
+    // Ensure output directory exists
+    fs::create_dir_all(output_dir).map_err(|e| {
+        format!(
+            "Failed to create output directory {}: {}",
+            output_dir.display(),
+            e
+        )
+    })?;
+
+    for entry in fs::read_dir(input_dir).map_err(|e| {
+        format!(
+            "Failed to read input directory {}: {}",
+            input_dir.display(),
+            e
+        )
+    })? {
+        let entry = entry.map_err(|e| format!("Failed to read directory entry: {}", e))?;
+        let path = entry.path();
+
+        if path.is_dir() {
+            // Recursively process subdirectories
+            let relative_path = path.strip_prefix(input_dir).map_err(|e| {
+                format!("Failed to strip prefix from path {}: {}", path.display(), e)
+            })?;
+            let new_output_dir = output_dir.join(relative_path);
+            process_directory(&path, &new_output_dir, file_extension, processor)?;
+        } else if path.is_file() {
+            // Process files with the specified extension
+            if path
+                .extension()
+                .map_or(false, |ext| ext.to_ascii_lowercase() == file_extension)
+            {
+                let relative_path = path.strip_prefix(input_dir).map_err(|e| {
+                    format!("Failed to strip prefix from path {}: {}", path.display(), e)
+                })?;
+                let output_file_path = output_dir.join(relative_path);
+
+                // Ensure the parent directory for the output file exists
+                if let Some(parent) = output_file_path.parent() {
+                    fs::create_dir_all(parent).map_err(|e| {
+                        format!(
+                            "Failed to create output file parent directory {}: {}",
+                            parent.display(),
+                            e
+                        )
+                    })?;
+                }
+
+                // Call the provided processor function
+                processor(&path, &output_file_path)?;
+            }
+        }
+    }
+    Ok(())
 }
 
 fn main() -> Result<(), String> {
@@ -1088,32 +1150,84 @@ fn main() -> Result<(), String> {
             Ok(())
         }
         Commands::Convert(args) => {
-            // Validate input path extension for Convert
-            if args
-                .input
-                .extension()
-                .map_or(true, |ext| ext.to_ascii_lowercase() != "png")
+            // Validate input path extension for Convert (only PNG allowed for input)
+            if !args.batch
+                && args
+                    .input
+                    .extension()
+                    .map_or(true, |ext| ext.to_ascii_lowercase() != "png")
             {
-                return Err("Input filename for convert must have a .png extension.".to_string());
+                return Err(
+                    "Input filename for single convert must have a .png extension.".to_string(),
+                );
             }
-            // Validate output path extension for Convert
-            if args
-                .output
-                .extension()
-                .map_or(true, |ext| ext.to_ascii_lowercase() != "cube")
+            // Validate output path extension for Convert (only cube allowed for output)
+            if !args.batch
+                && args
+                    .output
+                    .extension()
+                    .map_or(true, |ext| ext.to_ascii_lowercase() != "cube")
             {
-                return Err("Output filename for convert must have a .cube extension.".to_string());
+                return Err(
+                    "Output filename for single convert must have a .cube extension.".to_string(),
+                );
             }
-            convert_lut_to_cube(&args.input, &args.output, args.target_cube)
+
+            if args.batch {
+                // Batch conversion: input is a directory of PNGs, output is a directory of .cube files
+                if !args.input.is_dir() {
+                    return Err(format!(
+                        "Input path {} is not a directory for batch conversion.",
+                        args.input.display()
+                    ));
+                }
+                if !args.output.is_dir() {
+                    // Try to create the output directory if it doesn't exist
+                    fs::create_dir_all(&args.output).map_err(|e| {
+                        format!(
+                            "Failed to create output directory {}: {}",
+                            args.output.display(),
+                            e
+                        )
+                    })?;
+                }
+
+                println!(
+                    "Starting batch conversion from {} to {}",
+                    args.input.display(),
+                    args.output.display()
+                );
+
+                process_directory(
+                    &args.input,
+                    &args.output,
+                    "png",
+                    &mut |input_file: &Path, output_file: &Path| {
+                        // Construct the output .cube file path
+                        let output_cube_path = output_file.with_extension("cube");
+                        // Call the single file conversion logic
+                        convert_lut_to_cube(input_file, &output_cube_path, args.target_cube)
+                    },
+                )?;
+
+                println!("Batch conversion completed.");
+            } else {
+                // Single file conversion
+                convert_lut_to_cube(&args.input, &args.output, args.target_cube)?;
+            }
+            Ok(())
         }
         Commands::Apply(args) => {
-            // Validate output path extension for Apply
-            if args
-                .output
-                .extension()
-                .map_or(true, |ext| ext.to_ascii_lowercase() != "png")
+            // Validate output path extension for Apply (only PNG allowed for output)
+            if !args.batch
+                && args
+                    .output
+                    .extension()
+                    .map_or(true, |ext| ext.to_ascii_lowercase() != "png")
             {
-                return Err("Output filename for apply must have a .png extension.".to_string());
+                return Err(
+                    "Output filename for single apply must have a .png extension.".to_string(),
+                );
             }
             // Validate input image extension for Apply
             let input_ext = args
@@ -1127,19 +1241,73 @@ fn main() -> Result<(), String> {
                         .to_string(),
                 );
             }
-            // Validate LUT file extension for Apply
-            let lut_ext = args
-                .lut
-                .extension()
-                .map_or("", |ext| ext.to_str().unwrap_or(""))
-                .to_ascii_lowercase();
-            if lut_ext != "png" && lut_ext != "cube" {
-                return Err(
-                    "LUT filename for apply must have a .png or .cube extension.".to_string(),
-                );
+            // Validate LUT input for Apply (file or directory)
+            if !args.batch && !args.lut.is_file() {
+                return Err(format!(
+                    "LUT path {} is not a file for single apply.",
+                    args.lut.display()
+                ));
+            }
+            if args.batch && !args.lut.is_dir() {
+                return Err(format!(
+                    "LUT path {} is not a directory for batch apply.",
+                    args.lut.display()
+                ));
             }
 
-            apply_lut_to_image(&args.lut, &args.input, &args.output)
+            if args.batch {
+                // Batch application: input is a single image, lut is a directory of LUTs, output is a directory
+                if !args.output.is_dir() {
+                    // Try to create the output directory if it doesn't exist
+                    fs::create_dir_all(&args.output).map_err(|e| {
+                        format!(
+                            "Failed to create output directory {}: {}",
+                            args.output.display(),
+                            e
+                        )
+                    })?;
+                }
+
+                // Create a subdirectory in the output named after the input image
+                let input_image_filename = args
+                    .input
+                    .file_stem()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or("applied_results");
+                let image_output_dir = args.output.join(input_image_filename);
+
+                println!(
+                    "Starting batch application of LUTs from {} to image {} and saving to {}",
+                    args.lut.display(),
+                    args.input.display(),
+                    image_output_dir.display()
+                );
+
+                // Process LUT files in the LUT directory
+                process_directory(
+                    &args.lut,
+                    &image_output_dir,
+                    "",
+                    &mut |lut_file: &Path, output_base_path: &Path| {
+                        // Determine output filename based on LUT filename
+                        let lut_filename = lut_file
+                            .file_stem()
+                            .and_then(|s| s.to_str())
+                            .unwrap_or("applied_lut");
+                        let output_image_path =
+                            output_base_path.with_file_name(format!("{}.png", lut_filename));
+
+                        // Call the single file application logic
+                        apply_lut_to_image(lut_file, &args.input, &output_image_path)
+                    },
+                )?;
+
+                println!("Batch application completed.");
+            } else {
+                // Single LUT application
+                apply_lut_to_image(&args.lut, &args.input, &args.output)?;
+            }
+            Ok(())
         }
         Commands::Examples => {
             // Match the new Examples subcommand
