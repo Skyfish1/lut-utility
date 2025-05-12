@@ -31,7 +31,7 @@ Options:
 
 2. Use this generated png in your editing software to apply your looks and grades. Note:
 - Only color grading and brightness changes can be applied to this HALD image.
-- **sharpening**, **bluring**, **grain**, **lens corrections**, **noise reduction**, **cropping** will destroy your HALD image and can NOT be uses as LUT.
+- **sharpening**, **bluring**, **grain**, **lens corrections**, **noise reduction**, **cropping** will destroy your HALD image and can NOT be used as LUT.
 
 3. Save the image with your grades applied to a lossless PNG "mygrade-hald144.png"
 
