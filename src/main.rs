@@ -1067,7 +1067,7 @@ fn run_examples() {
 fn process_directory<F>(
     input_dir: &Path,
     output_dir: &Path,
-    file_extension: &str,
+    file_extension: &str, // This is the filter for input files
     processor: &mut F,
 ) -> Result<(), String>
 where
@@ -1101,10 +1101,16 @@ where
             process_directory(&path, &new_output_dir, file_extension, processor)?;
         } else if path.is_file() {
             // Process files with the specified extension
-            if path
-                .extension()
-                .map_or(false, |ext| ext.to_ascii_lowercase() == file_extension)
-            {
+            let process_this_file = if file_extension.is_empty() {
+                // If file_extension is empty, process all files
+                true
+            } else {
+                // Otherwise, check if the file extension matches
+                path.extension()
+                    .map_or(false, |ext| ext.to_ascii_lowercase() == file_extension)
+            };
+
+            if process_this_file {
                 let relative_path = path.strip_prefix(input_dir).map_err(|e| {
                     format!("Failed to strip prefix from path {}: {}", path.display(), e)
                 })?;
@@ -1287,8 +1293,13 @@ fn main() -> Result<(), String> {
                 process_directory(
                     &args.lut,
                     &image_output_dir,
-                    "",
+                    "", // process all entries, filter inside the closure
                     &mut |lut_file: &Path, output_base_path: &Path| {
+                        let extension = lut_file.extension().and_then(|ext| ext.to_str()).unwrap_or("").to_ascii_lowercase();
+                        if extension != "png" && extension != "cube" {
+                            println!("Skipping unsupported file in LUT directory: {}", lut_file.display());
+                            return Ok(()); // Skip this file and continue
+                        }
                         // Determine output filename based on LUT filename
                         let lut_filename = lut_file
                             .file_stem()
