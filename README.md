@@ -70,7 +70,7 @@ Options:
   -b, --batch                      Enable batch processing mode. Input and output must be directories
 ~~~
 
-This will apply ally luts in lut folder (-l) folder to this one image (0424406328.jpg). The files will be stored as PNG in output\0424406328\ preserving lut filename and directory structure.
+This will apply all LUTs in LUT (-l) folder to this one image (0424406328.jpg). The files will be stored as PNG in output\0424406328\ preserving LUT filename and directory structure.
 ~~~sh
 Usage: lut_utility apply [OPTIONS] --lut <LUT> --input <INPUT> --output <OUTPUT>
 Example: lut_utility apply -l input\HaldCLUTs -i input\0424406328.jpg -o output\ -b
