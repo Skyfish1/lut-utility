@@ -1031,35 +1031,35 @@ fn run_examples() {
     println!("EXAMPLES:");
     println!();
     println!("Generate an 8-bit HALD LUT with cube size 64:");
-    println!("  lut_tool generate --format hald --cube 64 --output hald_64.png");
+    println!("  lut_utility generate --format hald --cube 64 --output hald_64.png");
     println!();
     println!("Generate a 16-bit Unwrapped Cube LUT with cube size 33:");
     println!(
-        "  lut_tool generate --format unwrapped-cube --cube 33 --bit-depth 16 --output unwrapped_33_16bit.png"
+        "  lut_utility generate --format unwrapped-cube --cube 33 --bit-depth 16 --output unwrapped_33_16bit.png"
     );
     println!();
     println!("Convert a single Unwrapped Cube PNG to a .cube LUT:");
-    println!("  lut_tool convert --input unwrapped_33.png --output unwrapped_33.cube");
+    println!("  lut_utility convert --input unwrapped_33.png --output unwrapped_33.cube");
     println!();
     println!("Convert a HALD PNG and reduce to a 33-point .cube LUT:");
-    println!("  lut_tool convert --input hald_64.png --output hald_64_to_33.cube --target-cube 33");
+    println!("  lut_utility convert --input hald_64.png --output hald_64_to_33.cube --target-cube 33");
     println!();
     println!("Batch convert all PNG LUTs in a folder (and subfolders) to .cube files:");
-    println!("  lut_tool convert --input ./input_luts --output ./output_cubes --batch");
+    println!("  lut_utility convert --input ./input_luts --output ./output_cubes --batch");
     println!();
     println!("Apply a single .cube LUT to an image:");
     println!(
-        "  lut_tool apply --lut my_color_grade.cube --input photo.jpg --output photo_graded.png"
+        "  lut_utility apply --lut my_color_grade.cube --input photo.jpg --output photo_graded.png"
     );
     println!();
     println!("Apply a HALD LUT PNG to an image:");
     println!(
-        "  lut_tool apply --lut hald_64.png --input photo.png --output photo_hald_applied.png"
+        "  lut_utility apply --lut hald_64.png --input photo.png --output photo_hald_applied.png"
     );
     println!();
     println!("Apply all LUTs in a folder (and subfolders) to a single image:");
     println!(
-        "  lut_tool apply --lut ./lut_collection --input photo.jpg --output ./applied_images --batch"
+        "  lut_utility apply --lut ./lut_collection --input photo.jpg --output ./applied_images --batch"
     );
 }
 
